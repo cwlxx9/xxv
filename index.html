@@ -85,20 +85,8 @@ if (-not $pwshPath) {
     }
 }
 
-# Build remote execution command (console width + height)
-$width = 90
-$height = 200
-
+# Build remote execution command — no resize logic here anymore
 $remoteCommand = @"
-`$width = $width
-`$height = $height
-try {
-    `$ui = `$Host.UI.RawUI
-    `$ui.BufferSize = New-Object System.Management.Automation.Host.Size(`$width, 9999)
-    `$ui.WindowSize = New-Object System.Management.Automation.Host.Size(`$width, `$height)
-} catch {
-    Write-Host '⚠ Unable to set console size automatically. You can resize manually.' -ForegroundColor Yellow
-}
 iex (Invoke-RestMethod -Uri '$remoteScriptUri')
 "@
 
@@ -137,10 +125,3 @@ else {
 # -------------------------------
 # ⚡ Section : Elevation Logic - End
 # -------------------------------
-
-
-
-
-
-
-
