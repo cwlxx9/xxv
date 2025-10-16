@@ -1,0 +1,139 @@
+# ==========================================
+# 🚀 PowerShell Smart Launcher (5.1 & 7 Compatible)
+# Ensure PowerShell 7 Installed + Elevation Check + Run Liang Menu
+# ==========================================
+
+# URL of your PowerShell 7 script
+$remoteScriptUri = "https://raw.githubusercontent.com/cwlxx9/xxv/main/menu-nogui.ps1"
+
+# -------------------------------
+# 🧩 Section : Helper Functions - Start
+# -------------------------------
+
+# Check if current session is running as admin
+function Test-IsAdmin {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+# Check if PowerShell 7 exists
+function Test-PwshInstalled {
+    $paths = @(
+        "$env:ProgramFiles\PowerShell\7\pwsh.exe",
+        "$env:ProgramFiles(x86)\PowerShell\7\pwsh.exe"
+    )
+    foreach ($path in $paths) {
+        if (Test-Path $path) { return $path }
+    }
+
+    # Try to locate from PATH
+    $found = (Get-Command pwsh -ErrorAction SilentlyContinue)
+    if ($found) { return $found.Source }
+
+    return $null
+}
+
+# Install PowerShell 7 via winget
+function Install-Pwsh {
+    Write-Host "`nPowerShell 7 not found. Installing via winget..." -ForegroundColor Yellow
+
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Host "ERROR: 'winget' not available. Please install App Installer from Microsoft Store." -ForegroundColor Red
+        exit 1
+    }
+
+    try {
+        winget install --id Microsoft.PowerShell --source winget --accept-package-agreements --accept-source-agreements -e
+    }
+    catch {
+        Write-Host "Winget installation failed." -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "`nPowerShell 7 installation completed. Checking again..." -ForegroundColor Green
+    Start-Sleep -Seconds 5
+}
+
+# -------------------------------
+# 🧩 Section : Helper Functions - End
+# -------------------------------
+
+
+# -------------------------------
+# 🧠 Section : Main Logic - Start
+# -------------------------------
+
+$isAdmin = Test-IsAdmin
+$isPwsh7 = $PSVersionTable.PSEdition -eq "Core"
+
+# ✅ Already in PowerShell 7 & Admin → Run remote script directly
+if ($isPwsh7 -and $isAdmin) {
+    Write-Host "`nRunning inside PowerShell 7 (Admin Mode). Launching menu..." -ForegroundColor Green
+    iex (Invoke-RestMethod -Uri $remoteScriptUri)
+    exit 0
+}
+
+# ⚙️ If not PowerShell 7, check or install it
+$pwshPath = Test-PwshInstalled
+if (-not $pwshPath) {
+    Install-Pwsh
+    $pwshPath = Test-PwshInstalled
+    if (-not $pwshPath) {
+        Write-Host "PowerShell 7 installation failed or not detected." -ForegroundColor Red
+        exit 1
+    }
+}
+
+# Build remote execution command (console width + height)
+$width = 90
+$height = 200
+
+$remoteCommand = @"
+`$width = $width
+`$height = $height
+try {
+    `$ui = `$Host.UI.RawUI
+    `$ui.BufferSize = New-Object System.Management.Automation.Host.Size(`$width, 9999)
+    `$ui.WindowSize = New-Object System.Management.Automation.Host.Size(`$width, `$height)
+} catch {
+    Write-Host '⚠ Unable to set console size automatically. You can resize manually.' -ForegroundColor Yellow
+}
+iex (Invoke-RestMethod -Uri '$remoteScriptUri')
+"@
+
+# Build pwsh arguments
+$pwshArgs = @(
+    '-NoProfile'
+    '-ExecutionPolicy'
+    'Bypass'
+    '-Command'
+    $remoteCommand
+)
+
+# -------------------------------
+# ⚡ Section : Elevation Logic - Start
+# -------------------------------
+
+if (-not $isAdmin) {
+    Write-Host "`nRequesting administrator rights..." -ForegroundColor Yellow
+    try {
+        Start-Process -FilePath $pwshPath -ArgumentList $pwshArgs -Verb RunAs -WindowStyle Normal | Out-Null
+        Write-Host "`nLaunched PowerShell 7 elevated. Closing this window..." -ForegroundColor DarkGray
+        Start-Sleep -Seconds 2
+        exit 0
+    }
+    catch {
+        Write-Host "User cancelled elevation or an error occurred." -ForegroundColor Red
+        exit 1
+    }
+}
+else {
+    Write-Host "`nAlready running as admin. Launching in PowerShell 7..." -ForegroundColor Green
+    Start-Process -FilePath $pwshPath -ArgumentList $pwshArgs -WindowStyle Normal | Out-Null
+    exit 0
+}
+
+# -------------------------------
+# ⚡ Section : Elevation Logic - End
+# -------------------------------
