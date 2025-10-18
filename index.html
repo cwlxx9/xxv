@@ -1,143 +1,50 @@
 # ============================================================
-# 🚀 PowerShell Smart Launcher (Final Stable Version)
-# ✅ Works on PowerShell 5 – Ensures Admin Rights + Installs PS7 + Runs Liang Menu
+# ⚙️ PowerShell 5 Bootstrapper for Menu-NoGUI.ps1
 # ============================================================
 
-# URL of your PowerShell 7 script
-$RemoteScriptUri = "https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1"
-
 # ------------------------------------------------------------
-# 🧩 Section : Helper Functions - Start
+# Step 1: Ensure Running as Administrator
 # ------------------------------------------------------------
-
-function Test-IsAdmin {
-    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+if (-not $IsAdmin) {
+    Write-Host "⚠️  Not running as Administrator. Restarting as admin..."
+    Start-Process powershell.exe "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    exit
 }
 
-function Get-PwshPath {
-    $paths = @(
-        "$env:ProgramFiles\PowerShell\7\pwsh.exe",
-        "$env:ProgramFiles(x86)\PowerShell\7\pwsh.exe"
-    )
-    foreach ($p in $paths) {
-        if (Test-Path $p) { return $p }
-    }
-
-    $fromPath = (Get-Command pwsh -ErrorAction SilentlyContinue)
-    if ($fromPath) { return $fromPath.Source }
-
-    return $null
-}
-
-function Install-PowerShell7 {
-    Write-Host "`nPowerShell 7 not found. Installing silently via winget..." -ForegroundColor Yellow
-
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        Write-Host "❌ 'winget' not available. Please install App Installer from Microsoft Store." -ForegroundColor Red
-        exit 1
-    }
-
-    try {
-        Start-Process -FilePath "winget" -ArgumentList @(
-            "install",
-            "--id", "Microsoft.PowerShell",
-            "--source", "winget",
-            "--accept-package-agreements",
-            "--accept-source-agreements",
-            "--silent"
-        ) -Wait -NoNewWindow
-    }
-    catch {
-        Write-Host "❌ Winget installation failed: $_" -ForegroundColor Red
-        exit 1
-    }
-
-    Write-Host "`n✅ PowerShell 7 installation completed. Verifying..." -ForegroundColor Green
-    Start-Sleep -Seconds 3
-}
+Write-Host "✅ Running as Administrator"
 
 # ------------------------------------------------------------
-# 🧩 Section : Helper Functions - End
+# Step 2: Check for PowerShell 7 (pwsh.exe)
 # ------------------------------------------------------------
-
-
-# ------------------------------------------------------------
-# 🧠 Section : Admin Elevation Check - Start (Fully Safe)
-# ------------------------------------------------------------
-
-if (-not (Test-IsAdmin)) {
-    Write-Host "`n🔒 Administrator rights required. Relaunching PowerShell 5 as Admin..." -ForegroundColor Yellow
-
-    try {
-        # Attempt to get the real file path
-        $scriptDef = $MyInvocation.MyCommand.Definition
-        $isFile = Test-Path $scriptDef
-
-        if ($isFile) {
-            # Running from a .ps1 file
-            $scriptPath = (Resolve-Path -Path $scriptDef).Path
-            Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-        }
-        else {
-            # Running from memory (irm | iex)
-            $launchCmd = "iex (irm '$($MyInvocation.MyCommand.Source)' -UseBasicParsing)"
-            Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `$launchCmd" -Verb RunAs
-        }
-    }
-    catch {
-        Write-Host "❌ Failed to elevate: $_" -ForegroundColor Red
-    }
-
-    exit 0
-}
-
-# ------------------------------------------------------------
-# 🧠 Section : Admin Elevation Check - End
-# ------------------------------------------------------------
-
-
-# ------------------------------------------------------------
-# ⚙️ Section : PowerShell 7 Detection & Installation - Start
-# ------------------------------------------------------------
-
-$pwshPath = Get-PwshPath
+$pwshPath = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
 
 if (-not $pwshPath) {
-    Install-PowerShell7
-    $pwshPath = Get-PwshPath
+    Write-Host "⚙️ PowerShell 7 not found. Installing via winget..."
+    
+    # Check if winget exists
+    if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+        Write-Host "❌ winget not found. Please install Windows Package Manager first."
+        exit 1
+    }
+
+    # Install PowerShell 7
+    Start-Process winget -ArgumentList 'install --id Microsoft.PowerShell --source winget --accept-source-agreements --accept-package-agreements' -Wait
+    $pwshPath = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+
     if (-not $pwshPath) {
-        Write-Host "❌ PowerShell 7 installation failed or not found." -ForegroundColor Red
+        Write-Host "❌ PowerShell 7 installation failed. Exiting."
         exit 1
     }
 }
 
-# ------------------------------------------------------------
-# ⚙️ Section : PowerShell 7 Detection & Installation - End
-# ------------------------------------------------------------
-
+Write-Host "✅ PowerShell 7 found at: $pwshPath"
 
 # ------------------------------------------------------------
-# 🚀 Section : Run Liang Menu in PowerShell 7 - Start
+# Step 3: Run Menu-NoGUI.ps1 from GitHub
 # ------------------------------------------------------------
+Write-Host "🚀 Launching Menu-NoGUI.ps1 using PowerShell 7..."
+Start-Process $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1 | iex`""
 
-$remoteCommand = @"
-iex (Invoke-RestMethod -Uri '$RemoteScriptUri')
-"@
-
-$pwshArgs = @(
-    '-NoProfile',
-    '-ExecutionPolicy', 'Bypass',
-    '-Command', $remoteCommand
-)
-
-Write-Host "`n✅ Launching Menu-NoGUI.ps1 in PowerShell 7..." -ForegroundColor Green
-Start-Process -FilePath $pwshPath -ArgumentList $pwshArgs -WindowStyle Normal | Out-Null
-
-Start-Sleep -Seconds 2
-exit 0
-
-# ------------------------------------------------------------
-# 🚀 Section : Run Liang Menu in PowerShell 7 - End
-# ------------------------------------------------------------
+# Done
+Write-Host "✅ Script execution triggered in PowerShell 7."
