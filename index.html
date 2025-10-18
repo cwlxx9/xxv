@@ -1,5 +1,5 @@
 # ============================================================
-# ⚙️ PowerShell 5 → PowerShell 7 Installer & Launcher
+# ⚙️ PowerShell 5 → PowerShell 7 Installer & Remote Script Launcher
 # ============================================================
 
 # --- Step 1 : Check for PowerShell 7 ---
@@ -14,24 +14,37 @@ if (-not $pwshPath) {
         exit 1
     }
 
-    # Install PowerShell 7 directly in the same session (visible)
+    # Install PowerShell 7 visibly, no user prompts
     winget install --id Microsoft.PowerShell --source winget --accept-package-agreements --accept-source-agreements
 
-    # Recheck after installation
-    $pwshPath = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+    # Try locating the new PowerShell 7 path manually
+    Write-Host "🔁 Checking installation path..."
+    $possiblePaths = @(
+        "$env:ProgramFiles\PowerShell\7\pwsh.exe",
+        "$env:ProgramFiles\PowerShell\7-preview\pwsh.exe",
+        "$env:LocalAppData\Microsoft\WindowsApps\pwsh.exe"
+    )
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            $pwshPath = $path
+            break
+        }
+    }
+
     if (-not $pwshPath) {
-        Write-Host "❌  PowerShell 7 installation failed or path not updated yet."
-        Write-Host "➡️  Please restart PowerShell, then rerun this script."
+        Write-Host "❌  Could not find pwsh.exe even after installation."
+        Write-Host "➡️  Please restart PowerShell, then run this script again."
         exit 1
     }
-    Write-Host "✅ PowerShell 7 installed successfully."
+
+    Write-Host "✅ PowerShell 7 installed and found at: $pwshPath"
 } else {
-    Write-Host "✅ PowerShell 7 already installed."
+    Write-Host "✅ PowerShell 7 already installed at: $pwshPath"
 }
 
-# --- Step 2 : Run Remote Script using PowerShell 7 (as Admin) ---
+# --- Step 2 : Launch Remote Script using PowerShell 7 (Admin mode) ---
 $RemoteScript = 'https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1'
-Write-Host "🚀 Launching Menu-NoGUI.ps1 in PowerShell 7 (Admin mode)..."
+Write-Host "🚀 Launching remote script in PowerShell 7 (Admin mode)..."
 
 Start-Process -FilePath $pwshPath `
     -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm $RemoteScript | iex`"" `
