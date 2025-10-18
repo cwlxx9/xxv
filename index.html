@@ -1,38 +1,102 @@
 # ============================================================
-# ⚙️ PowerShell 5 Bootstrapper - Fixed Admin Relaunch
+# ⚙️ PowerShell 5 Bootstrapper for Menu-NoGUI.ps1 (Ordered)
 # ============================================================
-
-# Step 1: Check admin rights
+# Section : Ensure Administrator - Start
 $IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
 
+# If not elevated, save a temp copy and re-launch elevated (so -File has a path)
 if (-not $IsAdmin) {
-    Write-Host "⚠️  Not running as Administrator. Restarting as admin..."
+    Write-Host "⚠️ Not running as Administrator. Preparing to restart elevated..."
 
-    # If script was run via irm | iex, $PSCommandPath is null
-    if (-not $PSCommandPath) {
-        $TempFile = "$env:TEMP\bootstrap-temp.ps1"
-        Write-Host "📁 Saving temp script to: $TempFile"
-        (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1" -UseBasicParsing).Content | Out-File -Encoding UTF8 $TempFile
-        Start-Process powershell.exe "-ExecutionPolicy Bypass -File `"$TempFile`"" -Verb RunAs
-        exit
+    # Create a stable temp file name so elevated process can later cleanup
+    $TempFile = Join-Path -Path $env:TEMP -ChildPath ("bootstrap-elevate-{0}.ps1" -f ([guid]::NewGuid().ToString()))
+    
+    # Save the current running content:
+    # If this script was run from a file, copy that file; otherwise fetch the bootstrap content from the same source used to launch
+    if ($PSCommandPath) {
+        # We were invoked from a file on disk — copy it
+        Copy-Item -Path $PSCommandPath -Destination $TempFile -Force
+    } else {
+        # Likely run via irm | iex — fetch this bootstrap's content (the bootstrap should be hosted somewhere).
+        # We'll embed the logic: attempt to download the remote bootstrap (same remote used to call originally).
+        # If you prefer to avoid network here, run the script saved to disk instead.
+        $SelfUri = 'https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1'
+        try {
+            (Invoke-WebRequest -Uri $SelfUri -UseBasicParsing -ErrorAction Stop).Content | Out-File -FilePath $TempFile -Encoding UTF8
+        } catch {
+            Write-Host "❌ Failed to fetch bootstrap content from $SelfUri. Please save the bootstrap to disk and run as administrator."
+            exit 1
+        }
     }
 
-    # Normal file execution case
-    Start-Process powershell.exe "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    # Relaunch elevated using the temp file
+    $arg = "-NoProfile -ExecutionPolicy Bypass -File `"$TempFile`""
+    Start-Process -FilePath "powershell.exe" -ArgumentList $arg -Verb RunAs
+    Write-Host "🔁 Elevated PowerShell launched. Exiting original process."
     exit
 }
-
 Write-Host "✅ Running as Administrator"
+# Section : Ensure Administrator - End
 
-# Step 2: Check for PowerShell 7
-$pwshPath = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
+# Section : Check / Install PowerShell 7 (pwsh) - Start
+# Look for pwsh.exe on PATH or via Get-Command
+$pwshCmd = (Get-Command pwsh.exe -ErrorAction SilentlyContinue)
+$pwshPath = if ($pwshCmd) { $pwshCmd.Source } else { $null }
+
 if (-not $pwshPath) {
-    Write-Host "⚙️ Installing PowerShell 7 via winget..."
-    Start-Process winget -ArgumentList 'install --id Microsoft.PowerShell --source winget --accept-source-agreements --accept-package-agreements' -Wait
-    $pwshPath = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
-    if (-not $pwshPath) { Write-Host "❌ Install failed"; exit 1 }
+    Write-Host "⚙️ PowerShell 7 (pwsh) not found. Installing via winget..."
+
+    # Ensure winget exists
+    if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+        Write-Host "❌ winget/Windows Package Manager not found. Please install winget first or install pwsh manually."
+        exit 1
+    }
+
+    # Install PowerShell (Microsoft.PowerShell). Accept agreements non-interactively.
+    $wingetArgs = 'install --id Microsoft.PowerShell --source winget --accept-source-agreements --accept-package-agreements'
+    Write-Host "📦 Running: winget $wingetArgs`n(This may take a few minutes...)"
+    $proc = Start-Process -FilePath "winget" -ArgumentList $wingetArgs -Wait -PassThru
+
+    # After winget completes, re-check for pwsh
+    $pwshCmd = (Get-Command pwsh.exe -ErrorAction SilentlyContinue)
+    $pwshPath = if ($pwshCmd) { $pwshCmd.Source } else { $null }
+
+    if (-not $pwshPath) {
+        Write-Host "❌ PowerShell 7 installation failed or pwsh not found after install."
+        exit 1
+    }
 }
 
-# Step 3: Run script
-Write-Host "🚀 Running Menu-NoGUI.ps1 using PowerShell 7..."
-Start-Process $pwshPath -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1 | iex"'
+Write-Host "✅ PowerShell 7 found at: $pwshPath"
+# Section : Check / Install PowerShell 7 (pwsh) - End
+
+# Section : Launch remote Menu-NoGUI.ps1 using pwsh - Start
+$RemoteUri = 'https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1'
+Write-Host "🚀 Launching remote Menu-NoGUI.ps1 with PowerShell 7..."
+
+# Use Start-Process to run pwsh and execute irm | iex inside it.
+# Use -NoProfile and -ExecutionPolicy Bypass for reliability.
+$pwshArgs = "-NoProfile -ExecutionPolicy Bypass -Command `"irm $RemoteUri | iex`""
+Start-Process -FilePath $pwshPath -ArgumentList $pwshArgs
+
+Write-Host "✅ Remote script execution triggered in PowerShell 7."
+# Section : Launch remote Menu-NoGUI.ps1 using pwsh - End
+
+# Section : Cleanup - Start
+# If this script file is a temp elevate copy in TEMP, delete it.
+try {
+    $currentScript = $PSCommandPath
+    if (-not $currentScript) { $currentScript = $MyInvocation.MyCommand.Path }
+    if ($currentScript) {
+        $tempPattern = [IO.Path]::GetTempPath()
+        if ($currentScript.StartsWith($tempPattern, [System.StringComparison]::InvariantCultureIgnoreCase)) {
+            # Small pause to ensure pwsh started (optional)
+            Start-Sleep -Seconds 1
+            Remove-Item -Path $currentScript -Force -ErrorAction SilentlyContinue
+            Write-Host "🧹 Cleaned up temporary bootstrap file: $currentScript"
+        }
+    }
+} catch {
+    # Non-fatal: ignore cleanup errors
+}
+# Section : Cleanup - End
