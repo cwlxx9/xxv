@@ -1,50 +1,38 @@
 # ============================================================
-# ⚙️ PowerShell 5 Bootstrapper for Menu-NoGUI.ps1
+# ⚙️ PowerShell 5 Bootstrapper - Fixed Admin Relaunch
 # ============================================================
 
-# ------------------------------------------------------------
-# Step 1: Ensure Running as Administrator
-# ------------------------------------------------------------
+# Step 1: Check admin rights
 $IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+
 if (-not $IsAdmin) {
     Write-Host "⚠️  Not running as Administrator. Restarting as admin..."
+
+    # If script was run via irm | iex, $PSCommandPath is null
+    if (-not $PSCommandPath) {
+        $TempFile = "$env:TEMP\bootstrap-temp.ps1"
+        Write-Host "📁 Saving temp script to: $TempFile"
+        (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1" -UseBasicParsing).Content | Out-File -Encoding UTF8 $TempFile
+        Start-Process powershell.exe "-ExecutionPolicy Bypass -File `"$TempFile`"" -Verb RunAs
+        exit
+    }
+
+    # Normal file execution case
     Start-Process powershell.exe "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     exit
 }
 
 Write-Host "✅ Running as Administrator"
 
-# ------------------------------------------------------------
-# Step 2: Check for PowerShell 7 (pwsh.exe)
-# ------------------------------------------------------------
+# Step 2: Check for PowerShell 7
 $pwshPath = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
-
 if (-not $pwshPath) {
-    Write-Host "⚙️ PowerShell 7 not found. Installing via winget..."
-    
-    # Check if winget exists
-    if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
-        Write-Host "❌ winget not found. Please install Windows Package Manager first."
-        exit 1
-    }
-
-    # Install PowerShell 7
+    Write-Host "⚙️ Installing PowerShell 7 via winget..."
     Start-Process winget -ArgumentList 'install --id Microsoft.PowerShell --source winget --accept-source-agreements --accept-package-agreements' -Wait
     $pwshPath = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source
-
-    if (-not $pwshPath) {
-        Write-Host "❌ PowerShell 7 installation failed. Exiting."
-        exit 1
-    }
+    if (-not $pwshPath) { Write-Host "❌ Install failed"; exit 1 }
 }
 
-Write-Host "✅ PowerShell 7 found at: $pwshPath"
-
-# ------------------------------------------------------------
-# Step 3: Run Menu-NoGUI.ps1 from GitHub
-# ------------------------------------------------------------
-Write-Host "🚀 Launching Menu-NoGUI.ps1 using PowerShell 7..."
-Start-Process $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1 | iex`""
-
-# Done
-Write-Host "✅ Script execution triggered in PowerShell 7."
+# Step 3: Run script
+Write-Host "🚀 Running Menu-NoGUI.ps1 using PowerShell 7..."
+Start-Process $pwshPath -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1 | iex"'
