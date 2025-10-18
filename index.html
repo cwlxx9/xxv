@@ -1,5 +1,5 @@
 # ============================================================
-# 🚀 PowerShell Smart Launcher (Enhanced Version – Final)
+# 🚀 PowerShell Smart Launcher (Enhanced Version – Fixed Admin Relaunch)
 # ✅ For PowerShell 5 – Ensures Admin Rights + Installs PS7 + Runs Liang Menu
 # ============================================================
 
@@ -10,14 +10,12 @@ $RemoteScriptUri = "https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/m
 # 🧩 Section : Helper Functions - Start
 # ------------------------------------------------------------
 
-# Check if running as admin
 function Test-IsAdmin {
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-# Check if PowerShell 7 exists
 function Get-PwshPath {
     $paths = @(
         "$env:ProgramFiles\PowerShell\7\pwsh.exe",
@@ -33,7 +31,6 @@ function Get-PwshPath {
     return $null
 }
 
-# Install PowerShell 7 silently via winget
 function Install-PowerShell7 {
     Write-Host "`nPowerShell 7 not found. Installing silently via winget..." -ForegroundColor Yellow
 
@@ -43,7 +40,6 @@ function Install-PowerShell7 {
     }
 
     try {
-        # Silent install with progress bar only
         Start-Process -FilePath "winget" -ArgumentList @(
             "install",
             "--id", "Microsoft.PowerShell",
@@ -68,13 +64,17 @@ function Install-PowerShell7 {
 
 
 # ------------------------------------------------------------
-# 🧠 Section : Admin Elevation Check - Start
+# 🧠 Section : Admin Elevation Check - Start (Fixed)
 # ------------------------------------------------------------
 
 if (-not (Test-IsAdmin)) {
     Write-Host "`n🔒 Administrator rights required. Relaunching PowerShell 5 as Admin..." -ForegroundColor Yellow
-    $scriptPath = $MyInvocation.MyCommand.Definition
-    Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+
+    # Get absolute path of current script
+    $scriptPath = (Resolve-Path -Path $MyInvocation.MyCommand.Definition).Path
+
+    # Relaunch as admin
+    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
     exit 0
 }
 
@@ -120,7 +120,7 @@ $pwshArgs = @(
 Write-Host "`n✅ Launching Menu-NoGUI.ps1 in PowerShell 7..." -ForegroundColor Green
 Start-Process -FilePath $pwshPath -ArgumentList $pwshArgs -WindowStyle Normal | Out-Null
 
-# Small delay so user can see the message before exit
+# Show message briefly before closing
 Start-Sleep -Seconds 2
 exit 0
 
