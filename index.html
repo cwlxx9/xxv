@@ -1,6 +1,6 @@
 # ============================================================
-# 🚀 PowerShell Smart Launcher (Enhanced Version – Fixed Admin Relaunch)
-# ✅ For PowerShell 5 – Ensures Admin Rights + Installs PS7 + Runs Liang Menu
+# 🚀 PowerShell Smart Launcher (Final Stable Version)
+# ✅ Works on PowerShell 5 – Ensures Admin Rights + Installs PS7 + Runs Liang Menu
 # ============================================================
 
 # URL of your PowerShell 7 script
@@ -64,17 +64,32 @@ function Install-PowerShell7 {
 
 
 # ------------------------------------------------------------
-# 🧠 Section : Admin Elevation Check - Start (Fixed)
+# 🧠 Section : Admin Elevation Check - Start (Fully Safe)
 # ------------------------------------------------------------
 
 if (-not (Test-IsAdmin)) {
     Write-Host "`n🔒 Administrator rights required. Relaunching PowerShell 5 as Admin..." -ForegroundColor Yellow
 
-    # Get absolute path of current script
-    $scriptPath = (Resolve-Path -Path $MyInvocation.MyCommand.Definition).Path
+    try {
+        # Attempt to get the real file path
+        $scriptDef = $MyInvocation.MyCommand.Definition
+        $isFile = Test-Path $scriptDef
 
-    # Relaunch as admin
-    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+        if ($isFile) {
+            # Running from a .ps1 file
+            $scriptPath = (Resolve-Path -Path $scriptDef).Path
+            Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+        }
+        else {
+            # Running from memory (irm | iex)
+            $launchCmd = "iex (irm '$($MyInvocation.MyCommand.Source)' -UseBasicParsing)"
+            Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `$launchCmd" -Verb RunAs
+        }
+    }
+    catch {
+        Write-Host "❌ Failed to elevate: $_" -ForegroundColor Red
+    }
+
     exit 0
 }
 
@@ -120,7 +135,6 @@ $pwshArgs = @(
 Write-Host "`n✅ Launching Menu-NoGUI.ps1 in PowerShell 7..." -ForegroundColor Green
 Start-Process -FilePath $pwshPath -ArgumentList $pwshArgs -WindowStyle Normal | Out-Null
 
-# Show message briefly before closing
 Start-Sleep -Seconds 2
 exit 0
 
