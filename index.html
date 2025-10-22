@@ -52,7 +52,7 @@ if (-not $pwshPath) {
 }
 
 # --- Step 2 : Launch Remote Script Using PowerShell 7 (Already Elevated) ---
-$RemoteScript = 'https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/Menu-NoGUI.ps1'
+$RemoteScript = 'https://raw.githubusercontent.com/cwlxxx/vault7/refs/heads/main/AdvanceSetupTools-PSVersion/Main.ps1'
 Write-Host "🚀 Launching remote script with PowerShell 7..."
 Start-Process -FilePath $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm $RemoteScript | iex`""
 
@@ -60,3 +60,4 @@ Start-Process -FilePath $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Byp
 Write-Host "✅ Done. Closing PowerShell 5..."
 Start-Sleep -Seconds 2
 exit
+
