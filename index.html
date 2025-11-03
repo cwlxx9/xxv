@@ -48,15 +48,11 @@ if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
     }
 
     Write-Host "✅ Winget installed successfully!"
-} else {
+}
+else {
     Write-Host "✅ Winget is already installed."
 }
 
-
-    Write-Host "✅ Winget installed successfully!"
-} else {
-    Write-Host "✅ Winget is already installed."
-}
 
 # --- Step 2 : Check for PowerShell 7 ---
 Write-Host "🔍 Checking for PowerShell 7..."
@@ -103,4 +99,5 @@ Start-Process -FilePath $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Byp
 Write-Host "✅ Done. Closing PowerShell 5..."
 Start-Sleep -Seconds 2
 exit
+
 
