@@ -25,9 +25,10 @@ if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
 
     try {
         Write-Host "⬇️ Downloading Winget from $wingetUrl ..."
-        Invoke-WebRequest -Uri $wingetUrl -OutFile $wingetInstaller -UseBasicParsing
+        # Using BITS for faster and more stable transfer
+        Start-BitsTransfer -Source $wingetUrl -Destination $wingetInstaller -DisplayName "Downloading Winget"
     } catch {
-        Write-Host "❌ Failed to download Winget package. Check your internet connection."
+        Write-Host "❌ Failed to download Winget package via BITS. Check your internet connection."
         exit 1
     }
 
@@ -45,6 +46,12 @@ if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
         Write-Host "❌ Winget still not detected after installation."
         exit 1
     }
+
+    Write-Host "✅ Winget installed successfully!"
+} else {
+    Write-Host "✅ Winget is already installed."
+}
+
 
     Write-Host "✅ Winget installed successfully!"
 } else {
@@ -96,3 +103,4 @@ Start-Process -FilePath $pwshPath -ArgumentList "-NoProfile -ExecutionPolicy Byp
 Write-Host "✅ Done. Closing PowerShell 5..."
 Start-Sleep -Seconds 2
 exit
+
